@@ -17,9 +17,11 @@ import net.minecraft.util.math.Vec3d;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.joml.Vector3f;
-
+import net.minecraft.util.shape.VoxelShapes;
 import java.util.OptionalDouble;
-
+import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.RenderSetup;
+import net.minecraft.client.render.LayeringTransform;
 @UtilityClass
 public class WorldRenderUtils {
 
@@ -35,12 +37,16 @@ public class WorldRenderUtils {
         matrices.translate(camPos.x, camPos.y, camPos.z);
 
         VertexConsumer buffer = throughWalls ? consumer.getBuffer(Layers.BoxFilledNoCull) : consumer.getBuffer(Layers.BoxFilled);
+                int argb = ((int)(color.a * 255.0F) << 24) |
+                ((int)(color.r * 255.0F) << 16) |
+                ((int)(color.g * 255.0F) << 8)  |
+                ((int)(color.b * 255.0F));
 
-        VertexRendering.drawFilledBox(
+                RenderUtils.drawFilledBox(
                 matrices, buffer,
                 box.minX, box.minY, box.minZ,
                 box.maxX, box.maxY, box.maxZ,
-                color.r, color.g, color.b, color.a
+                argb
         );
         matrices.pop();
     }
@@ -57,9 +63,23 @@ public class WorldRenderUtils {
                 ? consumer.getBuffer(Layers.BoxOutlineNoCull)
                 : consumer.getBuffer(Layers.BoxOutline);
 
-        VertexRendering.drawBox(
-                matrices.peek(), buffer, box,
-                color.r, color.g, color.b, color.a
+        int argb = ((int)(color.a * 255.0F) << 24) |
+                ((int)(color.r * 255.0F) << 16) |
+                ((int)(color.g * 255.0F) << 8)  |
+                ((int)(color.b * 255.0F));
+
+        net.minecraft.util.shape.VoxelShape shape = VoxelShapes.cuboid(
+                box.minX, box.minY, box.minZ,
+                box.maxX, box.maxY, box.maxZ
+        );
+
+        VertexRendering.drawOutline(
+                matrices,
+                buffer,
+                shape,
+                0.0, 0.0, 0.0,
+                argb,
+                1.0F
         );
         matrices.pop();
     }
@@ -342,95 +362,103 @@ public class WorldRenderUtils {
         );
     }
 
-    public static class Parameters {
-        public static final RenderLayer.MultiPhaseParameters.Builder filled = RenderLayer.MultiPhaseParameters.builder()
-                .layering(RenderLayer.VIEW_OFFSET_Z_LAYERING);
+    public class MyCustomRenderLayers {
 
-        public static final RenderLayer.MultiPhaseParameters.Builder lines = RenderLayer.MultiPhaseParameters.builder()
-                .layering(RenderLayer.VIEW_OFFSET_Z_LAYERING)
-                .lineWidth(new RenderPhase.LineWidth(OptionalDouble.of(3.0)));
+        // Gotowa warstwa dla WYPEŁNIONYCH kształtów (Filled)
+        public static final RenderLayer FILLED = RenderLayer.of(
+                "iqaddons_filled",
+                RenderSetup.builder(RenderPipelines.POSITION_COLOR_SUNRISE_SUNSET) // Podajemy potok dla brył z kolorem
+                        .layeringTransform(LayeringTransform.VIEW_OFFSET_Z_LAYERING) // Nowy odpowiednik RenderPhase
+                        .build()
+        );
+
+        // Gotowa warstwa dla LINII (Lines)
+        public static final RenderLayer LINES = RenderLayer.of(
+                "iqaddons_lines",
+                RenderSetup.builder(RenderPipelines.LINES) // Podajemy dedykowany potok dla linii
+                        .layeringTransform(LayeringTransform.VIEW_OFFSET_Z_LAYERING)
+                        // Nie ma już .lineWidth() - zarządza tym sam potok
+                        .build()
+        );
     }
-
     public static class Layers {
-        public static final RenderLayer.MultiPhase BoxFilled = RenderLayer.of(
-                "iqaddons_box_filled",
-                RenderLayer.DEFAULT_BUFFER_SIZE,
-                false,
-                true,
-                Pipelines.filledCull,
-                Parameters.filled.build(false)
+        public static final RenderLayer BoxFilled = RenderLayer.of(
+                "iqaddons_box_filled", // 1. argument: nazwa (bez zmian)
+
+                // 2. argument: Wszystko inne ląduje w nowym RenderSetup
+                RenderSetup.builder(Pipelines.filledCull)
+                        .expectedBufferSize(1536)
+                        .translucent()
+                        .layeringTransform(LayeringTransform.VIEW_OFFSET_Z_LAYERING)
+
+                        .build()
         );
 
-        public static final RenderLayer.MultiPhase BoxFilledNoCull = RenderLayer.of(
+        public static final RenderLayer BoxFilledNoCull = RenderLayer.of(
                 "iqaddons_box_filled_no_cull",
-                RenderLayer.DEFAULT_BUFFER_SIZE,
-                false,
-                true,
-                Pipelines.filledNoCull,
-                Parameters.filled.build(false)
+                RenderSetup.builder(Pipelines.filledNoCull)
+                        .expectedBufferSize(1536)
+                        .translucent()
+                        .layeringTransform(LayeringTransform.VIEW_OFFSET_Z_LAYERING)
+                        .build()
         );
 
-        public static final RenderLayer.MultiPhase BoxOutline = RenderLayer.of(
+        public static final RenderLayer BoxOutline = RenderLayer.of(
                 "iqaddons_box_outline",
-                RenderLayer.DEFAULT_BUFFER_SIZE,
-                false,
-                false,
-                Pipelines.outlineCull,
-                Parameters.lines.build(false)
+                RenderSetup.builder(Pipelines.outlineCull)
+                        .expectedBufferSize(1536)
+                        .layeringTransform(LayeringTransform.VIEW_OFFSET_Z_LAYERING)
+                        .build()
         );
 
-        public static final RenderLayer.MultiPhase BoxOutlineNoCull = RenderLayer.of(
+        public static final RenderLayer BoxOutlineNoCull = RenderLayer.of(
                 "iqaddons_box_outline_no_cull",
-                RenderLayer.DEFAULT_BUFFER_SIZE,
-                false,
-                false,
-                Pipelines.outlineNoCull,
-                Parameters.lines.build(false)
+                RenderSetup.builder(Pipelines.outlineNoCull)
+                        .expectedBufferSize(1536)
+                        .layeringTransform(LayeringTransform.VIEW_OFFSET_Z_LAYERING)
+                        .build()
         );
 
-        public static final RenderLayer.MultiPhase GuiLine = RenderLayer.of(
+        public static final RenderLayer GuiLine = RenderLayer.of(
                 "iqaddons_gui_line",
-                RenderLayer.DEFAULT_BUFFER_SIZE,
-                false,
-                false,
-                Pipelines.lineNoCull,
-                Parameters.lines.build(false)
+                RenderSetup.builder(Pipelines.lineNoCull)
+                        .expectedBufferSize(1536)
+                        .layeringTransform(LayeringTransform.VIEW_OFFSET_Z_LAYERING)
+                        .build()
         );
 
-        public static final RenderLayer.MultiPhase CircleFilled = RenderLayer.of(
+        public static final RenderLayer CircleFilled = RenderLayer.of(
                 "iqaddons_circle_filled",
-                RenderLayer.DEFAULT_BUFFER_SIZE,
-                false,
-                true,
-                Pipelines.circleFilledCull,
-                Parameters.filled.build(false)
+                RenderSetup.builder(Pipelines.circleFilledCull)
+                        .expectedBufferSize(1536)
+                        .translucent()
+                        .layeringTransform(LayeringTransform.VIEW_OFFSET_Z_LAYERING)
+                        .build()
         );
 
-        public static final RenderLayer.MultiPhase CircleFilledNoCull = RenderLayer.of(
+        public static final RenderLayer CircleFilledNoCull = RenderLayer.of(
                 "iqaddons_circle_filled_no_cull",
-                RenderLayer.DEFAULT_BUFFER_SIZE,
-                false,
-                true,
-                Pipelines.circleFilledNoCull,
-                Parameters.filled.build(false)
+                RenderSetup.builder(Pipelines.circleFilledNoCull)
+                        .expectedBufferSize(1536)
+                        .translucent()
+                        .layeringTransform(LayeringTransform.VIEW_OFFSET_Z_LAYERING)
+                        .build()
         );
 
-        public static final RenderLayer.MultiPhase CircleOutline = RenderLayer.of(
+        public static final RenderLayer CircleOutline = RenderLayer.of(
                 "iqaddons_circle_outline",
-                RenderLayer.DEFAULT_BUFFER_SIZE,
-                false,
-                false,
-                Pipelines.circleOutlineCull,
-                Parameters.lines.build(false)
+                RenderSetup.builder(Pipelines.circleOutlineCull)
+                        .expectedBufferSize(1536)
+                        .layeringTransform(LayeringTransform.VIEW_OFFSET_Z_LAYERING)
+                        .build()
         );
 
-        public static final RenderLayer.MultiPhase CircleOutlineNoCull = RenderLayer.of(
+        public static final RenderLayer CircleOutlineNoCull = RenderLayer.of(
                 "iqaddons_circle_outline_no_cull",
-                RenderLayer.DEFAULT_BUFFER_SIZE,
-                false,
-                false,
-                Pipelines.circleOutlineNoCull,
-                Parameters.lines.build(false)
+                RenderSetup.builder(Pipelines.circleOutlineNoCull)
+                        .expectedBufferSize(1536)
+                        .layeringTransform(LayeringTransform.VIEW_OFFSET_Z_LAYERING)
+                        .build()
         );
     }
 }

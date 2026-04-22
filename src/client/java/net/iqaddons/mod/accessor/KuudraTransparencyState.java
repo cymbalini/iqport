@@ -1,4 +1,4 @@
-package net.iqaddons.mod.mixin.accessor;
+package net.iqaddons.mod.accessor;
 
 public interface KuudraTransparencyState {
 

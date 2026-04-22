@@ -1,5 +1,6 @@
 package net.iqaddons.mod.mixin.feature.transparency;
 
+import net.iqaddons.mod.accessor.KuudraTransparencyState;
 import net.iqaddons.mod.config.categories.PhaseThreeConfig;
 import net.iqaddons.mod.manager.KuudraStateManager;
 import net.iqaddons.mod.model.kuudra.KuudraPhase;

@@ -1,5 +1,6 @@
 package net.iqaddons.mod.mixin.feature.transparency;
 
+import net.iqaddons.mod.accessor.KuudraTransparencyState;
 import net.minecraft.client.render.entity.state.SlimeEntityRenderState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
