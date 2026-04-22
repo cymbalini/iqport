@@ -1,0 +1,38 @@
+{
+  "pb_new_record": {
+    "subtitle": "iq.sound.pb_new_record",
+    "sounds": [
+      {
+        "name": "iq:pb_new_record",
+        "stream": false
+      }
+    ]
+  },
+  "ballista_build": {
+    "subtitle": "iq.sound.ballista_build",
+    "sounds": [
+      {
+        "name": "iq:ballista_build",
+        "stream": false
+      }
+    ]
+  },
+  "lucky_build": {
+    "subtitle": "iq.sound.lucky_build",
+    "sounds": [
+      {
+        "name": "iq:lucky_build",
+        "stream": false
+      }
+    ]
+  },
+  "lucky_build_end": {
+    "subtitle": "iq.sound.lucky_build_end",
+    "sounds": [
+      {
+        "name": "iq:lucky_build_end",
+        "stream": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,74 @@
+package net.iqaddons.mod.features.kuudra.alerts;
+
+import net.iqaddons.mod.config.categories.PhaseFourConfig;
+import net.iqaddons.mod.events.impl.ClientTickEvent;
+import net.iqaddons.mod.events.impl.ItemUseEvent;
+import net.iqaddons.mod.features.Feature;
+import net.iqaddons.mod.manager.BackboneAlertManager;
+import net.iqaddons.mod.utils.StringUtils;
+import net.minecraft.item.ItemStack;
+import net.minecraft.sound.SoundEvents;
+import net.minecraft.util.Hand;
+import org.jetbrains.annotations.NotNull;
+
+public class BackboneAlertFeature extends Feature {
+
+    private static final int BACKBONE_TICKS = 22;
+    private static final int BACKBONE_COOLDOWN_TICKS = 32;
+
+    private final BackboneAlertManager manager = BackboneAlertManager.get();
+
+    public BackboneAlertFeature() {
+        super(
+                "backboneAlert",
+                "Backbone Alert",
+                () -> PhaseFourConfig.backboneAlert
+        );
+    }
+
+    @Override
+    protected void onActivate() {
+        subscribe(ItemUseEvent.class, this::onItemUse);
+        subscribe(ClientTickEvent.class, this::onTick);
+
+        manager.reset();
+    }
+
+    @Override
+    protected void onDeactivate() {
+        manager.reset();
+    }
+
+    private void onItemUse(@NotNull ItemUseEvent event) {
+        if (mc.player == null || event.getHand() != Hand.MAIN_HAND) {
+            return;
+        }
+
+        ItemStack stack = event.getItemStack();
+        if (stack.isEmpty()) return;
+
+        String itemName = StringUtils.stripFormatting(stack.getName().getString()).toLowerCase();
+        if (!itemName.contains("bonemerang") || manager.isOnCooldown()) {
+            return;
+        }
+
+        manager.setCooldownTicks(BACKBONE_COOLDOWN_TICKS);
+        manager.startBackboneTimer(BACKBONE_TICKS);
+    }
+
+    private void onTick(@NotNull ClientTickEvent event) {
+        if (!event.isInGame()) return;
+
+        BackboneAlertManager.BoneResult result = manager.tick();
+        if (!result.triggerRendNow() || mc.player == null) {
+            return;
+        }
+
+        if (PhaseFourConfig.backboneAlertSound) {
+            mc.player.playSound(
+                    SoundEvents.BLOCK_NOTE_BLOCK_BELL.value(),
+                    2.0f, 1.0f
+            );
+        }
+    }
+}

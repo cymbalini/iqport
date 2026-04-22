@@ -1,0 +1,185 @@
+package net.iqaddons.mod.manager;
+
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+import net.iqaddons.mod.config.loader.PileConfigLoader;
+import net.iqaddons.mod.model.spot.PileLocation;
+import net.iqaddons.mod.model.spot.PreSpot;
+import net.iqaddons.mod.model.spot.SupplyPosition;
+import net.minecraft.util.math.Vec3d;
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.UnmodifiableView;
+
+import java.time.Instant;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+@Slf4j
+@Getter
+public final class SupplyStateManager {
+
+    private static final SupplyStateManager INSTANCE = new SupplyStateManager();
+
+    private final List<SupplyPosition> activeSupplies = new CopyOnWriteArrayList<>();
+    private final List<PileLocation> remainingPiles = new CopyOnWriteArrayList<>();
+
+    private volatile PreSpot detectedPreSpot = null;
+    private volatile boolean preSpotLocked = false;
+    private volatile Instant suppliesPhaseStart = null;
+    private volatile Long lastNoPreCheckAtMillis = null;
+    private volatile int missingPre = 0;
+    private volatile int suppliesCollected = 0;
+    private volatile int currentSupplyProgress = 0;
+
+    public void startSuppliesPhase() {
+        suppliesPhaseStart = Instant.now();
+        log.debug("Supplies phase started");
+    }
+
+    public void updateSupplyPositions(@NotNull List<SupplyPosition> positions) {
+        activeSupplies.clear();
+        activeSupplies.addAll(positions);
+    }
+
+    public void markNoPreCheckCompleted() {
+        lastNoPreCheckAtMillis = System.currentTimeMillis();
+        log.debug("No pre check completed at {}", lastNoPreCheckAtMillis);
+    }
+
+    @Contract(pure = true)
+    public @Nullable Long getLastNoPreCheckAtMillis() {
+        return lastNoPreCheckAtMillis;
+    }
+
+    @Contract(pure = true)
+    public @NotNull @UnmodifiableView List<SupplyPosition> getActiveSupplies() {
+        return Collections.unmodifiableList(activeSupplies);
+    }
+
+    public boolean tryDetectPreSpot(@NotNull Vec3d playerPos) {
+        if (preSpotLocked) return false;
+
+        PreSpot detected = PreSpot.fromPlayerPosition(playerPos);
+        if (detected != null) {
+            detectedPreSpot = detected;
+            preSpotLocked = true;
+            log.info("Pre spot detected: {}", detected.getDisplayName());
+            return true;
+        }
+
+        return false;
+    }
+
+    public boolean hasPreSupply() {
+        if (detectedPreSpot == null) return false;
+
+        Vec3d preLoc = detectedPreSpot.getLocation();
+        double radius = 18.0;
+
+        return activeSupplies.stream()
+                .anyMatch(supply -> supply.isNear(preLoc, radius));
+    }
+
+    public @Nullable Boolean hasSecondarySupply() {
+        if (detectedPreSpot == null || !detectedPreSpot.hasSecondaryLocation()) {
+            return null;
+        }
+
+        Vec3d secondaryLoc = detectedPreSpot.getSecondaryLocation();
+        double radius = detectedPreSpot.getSecondaryCheckRadius();
+
+        return activeSupplies.stream()
+                .anyMatch(supply -> supply.isNear(secondaryLoc, radius));
+    }
+
+    public @Nullable SupplyPosition findSupplyNear(@NotNull Vec3d location, double radius) {
+        return activeSupplies.stream()
+                .filter(supply -> supply.isNear(location, radius))
+                .findFirst()
+                .orElse(null);
+    }
+
+    public void markPileCompleted(@NotNull Vec3d armorStandPos) {
+        remainingPiles.removeIf(pile -> pile.isNearby(armorStandPos));
+    }
+
+    public void setMissingPre(int value) {
+        if (value != missingPre) {
+            missingPre = value;
+            log.debug("Missing pre set to: {}", value);
+        }
+    }
+
+    public void setSupplyProgress(int value) {
+        if (value != currentSupplyProgress) {
+            currentSupplyProgress = value;
+            log.debug("Current supply progress set to: {}", value);
+        }
+    }
+
+    public void reloadPileLocations(@NotNull List<PileLocation> updatedPiles) {
+        remainingPiles.clear();
+        remainingPiles.addAll(updatedPiles);
+        log.debug("Pile locations reloaded from config: {} piles", updatedPiles.size());
+    }
+
+    public void reset() {
+        activeSupplies.clear();
+        remainingPiles.clear();
+        remainingPiles.addAll(getConfiguredPiles());
+
+        detectedPreSpot = null;
+        preSpotLocked = false;
+        suppliesPhaseStart = null;
+        lastNoPreCheckAtMillis = null;
+
+        missingPre = 0;
+        suppliesCollected = 0;
+        currentSupplyProgress = 0;
+        log.debug("Supply state reset");
+    }
+
+    public long getElapsedTimeMillis() {
+        if (suppliesPhaseStart == null) return 0;
+        return System.currentTimeMillis() - Objects.requireNonNull(suppliesPhaseStart).toEpochMilli();
+    }
+
+    public long getElapsedTimeSeconds() {
+        return getElapsedTimeMillis() / 1000;
+    }
+
+    @Contract(pure = true)
+    public @NotNull String getTimeColor() {
+        return switch (getTimeTier()) {
+            case 0 -> "§f§l";
+            case 1 -> "§9§l";
+            case 2 -> "§a§l";
+            case 3 -> "§2§l";
+            case 4 -> "§e§l";
+            default -> "§c§l";
+        };
+    }
+
+    private int getTimeTier() {
+        long time = getElapsedTimeMillis();
+        if (time < 19000) return 0;
+        if (time < 23000) return 1;
+        if (time < 26000) return 2;
+        if (time < 29500) return 3;
+        if (time < 32000) return 4;
+        return 5;
+    }
+
+    private @NotNull List<PileLocation> getConfiguredPiles() {
+        List<PileLocation> cachedPiles = PileConfigLoader.get().getCached();
+        return cachedPiles.isEmpty() ? PileConfigLoader.get().load() : cachedPiles;
+    }
+
+    public static SupplyStateManager get() {
+        return INSTANCE;
+    }
+}

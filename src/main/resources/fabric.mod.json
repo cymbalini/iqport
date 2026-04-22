@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "iqaddons",
+  "version": "${version}",
+  "name": "IQ",
+  "description": "IQ is an all-in-one Hypixel SkyBlock mod focused entirely on Kuudra.\nClean, optimized, basically everything you need for Kuudra in one place, without clutter.",
+  "authors": [
+    "PeHenrii",
+    "DarkJota"
+  ],
+  "contact": {
+    "homepage": "https://github.com/pehenrii/IQ",
+    "sources": "https://github.com/pehenrii/IQ",
+    "issues": "https://discord.gg/HdhXhCWcW9",
+    "discord": "https://discord.gg/HdhXhCWcW9"
+  },
+  "license": "MIT",
+  "icon": "assets/iq/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "net.iqaddons.mod.IQModClient"
+    ],
+    "modmenu": [
+      "net.iqaddons.mod.integration.ModMenuIntegration"
+    ]
+  },
+  "mixins": [
+    "iq.mixins.json",
+    {
+      "config": "iq.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "resourcefulconfig": "*",
+    "java": ">=21",
+    "minecraft": "${minecraft_version}"
+  }
+}
